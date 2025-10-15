@@ -1,0 +1,204 @@
+Tu tarea es convertir automáticamente un PDF tipo "listicle de productos" en dos archivos CSV para Webflow.
+
+⚡ LECCIONES CLAVE APRENDIDAS:
+
+1️⃣ EXTRACCIÓN DE URLs:
+Las URLs de imágenes y links NO están visibles como texto en el PDF.
+Están embebidas como hipervínculos. SIEMPRE usar:
+  strings "archivo.pdf" | grep "/URI"
+para extraerlas antes de procesar el contenido.
+
+2️⃣ FORMATO CSV CRÍTICO:
+⚠️ ERROR COMÚN: Los campos se desplazan si el contenido tiene comas.
+SOLUCIÓN: SIEMPRE usar comillas dobles para encerrar campos con comas.
+Ejemplo: "contenido con, comas, y más texto"
+VALIDACIÓN: Contar comas en header vs data - DEBEN SER IGUALES.
+
+🔧 HERRAMIENTA REQUERIDA: 
+   - Python con módulo csv (import csv)
+   - Usar csv.writer() con quoting=csv.QUOTE_MINIMAL
+   - Usar csv.reader() para validar
+   - NO intentar generar CSVs manualmente con concatenación de strings
+
+3️⃣ CAMPOS PERCENT (Products CSV):
+⚠️ IMPORTANTE: Cada campo numérico de calificación tiene su campo _percent correspondiente.
+CÁLCULO: Multiplicar el valor por 10 (ejemplo: 9.8 → 98)
+Campos con percent:
+   - product_total_ranking → product_total_ranking_percent
+   - product_ingredient_quality → product_ingredient_quality_percent  
+   - product_flavor → product_flavor_percent
+   - product_scent → product_scent_percent
+   - product_value_for_money → product_value_for_money_precent (typo intencional)
+⚠️ Nota: "precent" en el último campo mantiene el typo por compatibilidad.
+
+4️⃣ Aprendé el patrón de los archivos de ejemplo:
+   - Best5s.csv (molde vacío)
+   - Products.csv (molde vacío)
+   - Best5sSample.csv
+   - ProductsSample.csv
+   - Sample.pdf
+
+5️⃣ Una vez entendido el patrón, cuando te pase un nuevo PDF:
+   - Generá best5s_[tema].csv y products_[tema].csv siguiendo las mismas columnas, orden y formato.
+   - Respetá texto literal, no resumas ni cambies palabras.
+   - ⚠️ EXCEPCIÓN: El campo lede_paragraph debe tener MÁXIMO 150 caracteres.
+     Si el texto original es más largo, resumir manteniendo la esencia del mensaje.
+   - Usá <p>…</p> para párrafos en campos largos (sin \n).
+   - Mantener bullets como texto con símbolo ●.
+   - Si un campo no aparece, dejarlo vacío (nunca borrar columnas).
+   - Guardá los CSV en la carpeta /csv generados/.
+
+6️⃣ Extracción de URLs e Imágenes:
+   
+   🔍 PASO 1: Extraer URLs embebidas del PDF
+   Las URLs están como HIPERVÍNCULOS EMBEBIDOS, no como texto visible.
+   
+   Comando clave:
+   strings "archivo.pdf" | grep "/URI" | grep -E "https?://"
+   
+   Esto revelará:
+   - URLs de hero image (cerca de [source] del H1)
+   - URLs de imágenes de productos (cada [source] por producto)
+   - URLs de compra (Buy Now →)
+   - URLs de Top Pick (imagen y CTA)
+   
+   📋 MAPEO de URLs encontradas:
+   - Hero image → campo hero_image_url (Best5s CSV)
+   - Producto #1 imagen → campo product_image_url (Products CSV)
+   - Producto #1 compra → campo product_buy_url (Products CSV)
+   - Producto #2-5 (repetir el patrón)
+   - Top Pick imagen → campo top_pick_image_url (Best5s CSV)
+   - Top Pick CTA → campo top_pick_cta_url (Best5s CSV)
+   
+   ⚠️ IMPORTANTE: 
+   - SIEMPRE buscar URLs embebidas primero con strings
+   - pdftotext NO muestra las URLs de hipervínculos
+   - Los marcadores [source] indican DÓNDE están, pero la URL está embebida
+   - Webflow solo acepta URLs públicas (https://...)
+   - Si no hay URLs embebidas, dejar campos vacíos
+
+7️⃣ Antes de generar:
+   - Contá cuántos bullets, ingredientes, checklist y pilares hay realmente.
+   - Llená solo los existentes, dejando los demás vacíos.
+
+8️⃣ Limpieza de texto:
+   - Unir letras separadas ("H e m p  O i l" → "Hemp Oil").
+   - Mantener viñetas, pero no HTML en ellas.
+
+9️⃣ Calificaciones (Top 5 productos):
+   - Letras: F, D-, D, D+, C-, C, C+, B-, B, B+, A, A+.
+   - Orden descendente (no puede mejorar hacia abajo).
+   - Producto #1 → 4 subpuntuaciones (Ingredient Quality, Flavor, Scent, Value for Money).
+   - #2–#5 → 3 subpuntuaciones (Flavor, Scent, Value for Money).
+   - Promedios coherentes y descendentes, redondeados a 1 decimal.
+
+🔟 Validaciones finales:
+   - Mismo número de columnas que header.
+   - Ningún campo inventado.
+   - ⚠️ VALIDACIÓN CRÍTICA: Contar comas en header vs data - DEBEN SER IGUALES
+   - ⚠️ Comillas dobles en campos con comas para evitar desplazamiento
+   - ⚠️ El campo lede_paragraph debe tener máximo 150 caracteres
+   
+   ✅ URLs que DEBEN estar completas (si existen en el PDF):
+   Best5s CSV:
+   - hero_image_url
+   - top_pick_image_url
+   - top_pick_cta_url
+   
+   Products CSV (para CADA producto):
+   - product_image_url
+   - product_buy_url
+   
+   - Si las URLs embebidas NO existen: dejar campos vacíos
+   - CSVs listos para importar en Webflow sin ediciones adicionales
+
+1️⃣1️⃣ Output final:
+   - Dos CSV correctamente formateados con TODAS las URLs incorporadas
+   - Reporte detallado mostrando:
+     • URLs encontradas y mapeadas
+     • Validaciones completadas
+     • Estado: listo para importar a Webflow
+   - Limpieza: eliminar archivos temporales generados durante el proceso
+
+═══════════════════════════════════════════════════════════════
+
+📝 EJEMPLO DE FLUJO COMPLETO:
+
+1. Recibir PDF → "OnePet - Honest Paws Mobility Oil.pdf"
+
+2. Extraer URLs embebidas:
+   strings "archivo.pdf" | grep "/URI" | sort -u
+   
+   Resultado:
+   ✓ Hero: https://cdn.prod.website-files.com/.../Group%2098.svg
+   ✓ Prod #1 img: https://www.honestpaws.com/.../mobility-oil.png
+   ✓ Prod #1 buy: https://www.honestpaws.com/
+   ✓ (etc. para todos los productos)
+
+3. Extraer texto:
+   pdftotext "archivo.pdf" - | grep -v "URL"
+   (Las URLs ya las tenemos del paso 2)
+
+4. Generar CSVs con URLs incorporadas:
+   - best5s_honestpaws-mobility.csv ← con hero_image_url completa
+   - products_honestpaws-mobility.csv ← con product_image_url y product_buy_url
+   - ⚠️ USAR COMILLAS DOBLES en campos con comas para evitar desplazamiento
+   - ⚠️ VALIDAR: comas en header = comas en data
+   
+   🔧 MÉTODO TÉCNICO CORRECTO (usar Python con módulo csv):
+   
+   ```python
+   import csv
+   
+   # Header como string (SIN comillas)
+   header_line = "Name,Slug,Collection ID,Locale ID,..."
+   
+   # Data como lista de valores
+   row = ["Honest Paws", "slug", "", "", "texto con, comas", ...]
+   
+   # Escribir CSV correctamente
+   with open(output_file, 'w', encoding='utf-8', newline='') as f:
+       # 1. Header sin comillas
+       f.write(header_line + '\n')
+       
+       # 2. Data con csv.writer y QUOTE_MINIMAL
+       #    (añade comillas SOLO donde sea necesario)
+       writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+       writer.writerow(row)
+   ```
+   
+   ⚠️ NO usar métodos manuales de concatenación de strings
+   ⚠️ NO usar echo/cat para escribir CSVs
+   ⚠️ El módulo csv maneja automáticamente comillas y escapes
+
+5. Validar:
+   
+   🔧 VALIDACIÓN CORRECTA (usar csv.reader):
+   
+   ```python
+   import csv
+   
+   with open(csv_file, 'r', encoding='utf-8') as f:
+       reader = csv.reader(f)
+       lines = list(reader)
+       
+       header = lines[0]
+       data = lines[1]
+       
+       print(f"Header columnas: {len(header)}")
+       print(f"Data columnas: {len(data)}")
+       
+       if len(header) == len(data):
+           print("✅ VALIDACIÓN EXITOSA")
+       else:
+           print("❌ ERROR en número de columnas")
+   ```
+   
+   ⚠️ NO usar 'tr -cd "," | wc -c' (cuenta comas dentro de comillas)
+   ⚠️ csv.reader entiende el formato CSV correctamente
+   ✓ 64 columnas en Best5s
+   ✓ 30 columnas en Products (incluye 5 campos _percent)
+   ✓ Todas las URLs presentes
+   ✓ 5 productos con calificaciones descendentes
+
+6. Resultado: Archivos listos para importar a Webflow 🚀
